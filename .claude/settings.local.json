@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(ls:*)",
+      "Bash(node:*)",
+      "Bash(python:*)",
+      "Bash(npx playwright:*)",
+      "Bash(npm ls:*)",
+      "Bash(grep -o '.\\\\{0,30\\\\}process.\\\\{0,30\\\\}.' dist/content/content.js)",
+      "Bash(cd:*)",
+      "WebSearch",
+      "Bash(node -e \":*)"
+    ]
+  }
+}

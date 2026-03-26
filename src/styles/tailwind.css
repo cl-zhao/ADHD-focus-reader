@@ -1,0 +1,73 @@
+/* 导入Noto Serif SC字体 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 本地字体声明 */
+@font-face {
+  font-family: 'LXGW WenKai';
+  src: local('LXGW WenKai'), local('霞鹜文楷'), local('LXGW WenKai-Regular');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'LXGW WenKai';
+  src: local('LXGW WenKai Bold'), local('霞鹜文楷 Bold');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* 温暖主题（默认） */
+  --color-bg-primary: #FDF8F3;
+  --color-bg-secondary: #F5F0EB;
+  --color-text-primary: #3D3632;
+  --color-text-secondary: #6B635B;
+  --color-accent: #E8A87C;
+  --color-interactive: #C49A6C;
+
+  --font-family: "LXGW WenKai", "Noto Serif SC", system-ui, serif;
+  --font-size: 20px;
+  --line-height: 2.0;
+  --letter-spacing: 0.05em;
+  --paragraph-spacing: 1.5em;
+
+  --panel-max-width: 800px;
+  --panel-padding: 40px;
+  --button-height: 40px;
+  --button-radius: 8px;
+  --button-padding: 12px 20px;
+}
+
+/* 护眼主题 */
+[data-theme="sepia"] {
+  --color-bg-primary: #F0EAD6;
+  --color-bg-secondary: #E8E2CD;
+  --color-text-primary: #4A4A4A;
+  --color-text-secondary: #6B6B6B;
+  --color-accent: #D4A574;
+  --color-interactive: #B8956C;
+}
+
+/* 深色主题 */
+[data-theme="dark"] {
+  --color-bg-primary: #2D2A26;
+  --color-bg-secondary: #3A3632;
+  --color-text-primary: #E8E4DF;
+  --color-text-secondary: #A8A4A0;
+  --color-accent: #D4A574;
+  --color-interactive: #C49A6C;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
