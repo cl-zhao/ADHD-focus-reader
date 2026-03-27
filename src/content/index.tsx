@@ -63,7 +63,7 @@ function extractContent() {
 
 // ===== 常量 =====
 const DEFAULT_SETTINGS = {
-  reading: { mode: 'continuous', segmentSize: 150, bionicReading: false, focusMode: 'none' },
+  reading: { bionicReading: false, lineFocus: false, focusMask: false, ruler: false, beeline: false },
   appearance: { fontSize: 20, lineHeight: 2.0, letterSpacing: 0.05, theme: 'warm' },
   ai: { enableSummary: true, enableKeywords: true },
 };
@@ -146,30 +146,7 @@ const STYLES = `
   .adhd-content pre { background: var(--color-bg-secondary); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 1em 0; }
   .adhd-content pre code { background: none; padding: 0; }
 
-  /* Bionic Reading - 加粗单词前半部分 */
   .br { font-weight: 700; }
-
-  /* Focus Dim - 边缘暗角效果 */
-  .focus-dim::before,
-  .focus-dim::after {
-    content: '';
-    position: absolute;
-    left: 0; right: 0;
-    height: 25%;
-    pointer-events: none;
-    z-index: 2;
-    transition: opacity 0.3s;
-  }
-  .focus-dim::before {
-    top: 0;
-    background: linear-gradient(to bottom, var(--color-bg-primary) 0%, transparent 100%);
-    opacity: 0.6;
-  }
-  .focus-dim::after {
-    bottom: 0;
-    background: linear-gradient(to top, var(--color-bg-primary) 0%, transparent 100%);
-    opacity: 0.6;
-  }
 
   .kw-highlight {
     background: var(--color-accent);
@@ -177,6 +154,15 @@ const STYLES = `
     padding: 1px 4px;
     border-radius: 3px;
     font-weight: 500;
+  }
+
+  .adhd-content.beeline {
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .adhd-content.beeline * {
+    -webkit-text-fill-color: transparent !important;
   }
 
   .summary-box {
@@ -226,8 +212,8 @@ const STYLES = `
     box-shadow: 0 8px 32px rgba(0,0,0,0.2);
   }
   .settings-section { margin-bottom: 24px; }
-  .settings-section h3 { margin-bottom: 12px; color: var(--color-text-primary); font-size: 16px; }
-  .s-label { display: block; margin-bottom: 6px; color: var(--color-text-secondary); font-size: 13px; }
+  .settings-section h3 { margin-bottom: 12px; color: 'var(--color-text-primary)'; font-size: 16px; }
+  .s-label { display: block; margin-bottom: 6px; color: 'var(--color-text-secondary); font-size: 13px; }
   .s-input {
     width: 100%; padding: 8px 12px;
     border: 1px solid var(--color-bg-secondary);
@@ -267,8 +253,8 @@ const STYLES = `
     border-bottom: 1px solid var(--color-bg-secondary);
   }
   .toggle-row:last-child { border-bottom: none; }
-  .toggle-label { color: var(--color-text-primary); font-size: 14px; }
-  .toggle-desc { color: var(--color-text-secondary); font-size: 11px; margin-top: 2px; }
+  .toggle-label { color: 'var(--color-text-primary)'; font-size: 14px; }
+  .toggle-desc { color: 'var(--color-text-secondary)'; font-size: 11px; margin-top: 2px; }
   .toggle-switch {
     position: relative;
     width: 40px; height: 22px;
@@ -322,36 +308,7 @@ function htmlToText(html: string): string {
   return temp.textContent || temp.innerText || '';
 }
 
-function segmentText(text: string, targetSize = 150): string[] {
-  const maxSize = 300;
-  const segments: string[] = [];
-  const paragraphs = text
-    .replace(/<br\s*\/?>/gi, '\n\n')
-    .replace(/<\/p>/gi, '\n\n')
-    .replace(/<p[^>]*>/gi, '')
-    .split(/\n\n+/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0);
-  for (const para of paragraphs) {
-    const clean = htmlToText(para).trim();
-    if (!clean) continue;
-    if (clean.length <= maxSize) { segments.push(clean); continue; }
-    const sentences = clean.split(/(?<=[。！？!?.])/);
-    let buf = '';
-    for (const s of sentences) {
-      const t = s.trim();
-      if (!t) continue;
-      if (buf.length + t.length <= maxSize) { buf += t; }
-      else { if (buf) segments.push(buf.trim()); buf = t.length > maxSize ? t.slice(0, maxSize) : t; }
-    }
-    if (buf.trim()) segments.push(buf.trim());
-  }
-  return segments.filter((s) => s.length > 0);
-}
-
 // ===== Bionic Reading =====
-// 对 HTML 内容应用 Bionic Reading：加粗每个单词的前半部分
-// 参考: bionic-reading.com — 加粗单词的前 50% 字符，创建视觉锚点
 function applyBionicReading(html: string): string {
   const skipTags = new Set(['script', 'style', 'code', 'pre', 'textarea']);
   const result: string[] = [];
@@ -362,8 +319,6 @@ function applyBionicReading(html: string): string {
 
   while (i < html.length) {
     const ch = html[i];
-
-    // 始终检测标签（即使 skipDepth > 0，也需要跟踪关闭标签）
     if (ch === '<') {
       result.push(ch);
       if (inTag) { i++; continue; }
@@ -390,14 +345,10 @@ function applyBionicReading(html: string): string {
       i++;
       continue;
     }
-    // 跳过 code/pre 内的文本内容
     if (skipDepth > 0) { result.push(ch); i++; continue; }
-
-    // 收集文本直到下一个标签
     const textStart = i;
     while (i < html.length && html[i] !== '<') i++;
-    const text = html.slice(textStart, i);
-    result.push(bionicProcessText(text));
+    result.push(bionicProcessText(html.slice(textStart, i)));
   }
   return result.join('');
 }
@@ -407,33 +358,21 @@ function bionicProcessText(text: string): string {
   let i = 0;
   while (i < text.length) {
     const ch = text[i];
-
-    // HTML 实体
     if (ch === '&') {
       const semi = text.indexOf(';', i);
       if (semi !== -1 && semi - i < 10) { out += text.slice(i, semi + 1); i = semi + 1; continue; }
     }
-
-    // 空白
     if (/\s/.test(ch)) { out += ch; i++; continue; }
-
-    // CJK 字符：按2字分组，加粗第一个字
     if (/[\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\uff00-\uffef]/.test(ch)) {
       const start = i;
       while (i < text.length && /[\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\uff00-\uffef]/.test(text[i])) i++;
       const cjk = text.slice(start, i);
-      // 按2字分组
       for (let j = 0; j < cjk.length; j += 2) {
-        if (j + 1 < cjk.length) {
-          out += `<b class="br">${cjk[j]}</b>${cjk[j + 1]}`;
-        } else {
-          out += cjk[j];
-        }
+        if (j + 1 < cjk.length) out += `<b class="br">${cjk[j]}</b>${cjk[j + 1]}`;
+        else out += cjk[j];
       }
       continue;
     }
-
-    // 拉丁/数字单词：加粗前 50%
     const wStart = i;
     while (i < text.length && !/[\s<&\u4e00-\u9fff\u3400-\u4dbf]/.test(text[i])) i++;
     const word = text.slice(wStart, i);
@@ -450,10 +389,8 @@ function bionicProcessText(text: string): string {
 // ===== 关键词高亮（HTML 安全）=====
 function highlightKeywords(html: string, keywords: string[]): string {
   if (keywords.length === 0) return html;
-  // 构建单个正则，匹配所有关键词
   const escaped = keywords.map((kw) => kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   const re = new RegExp(`(${escaped.join('|')})`, 'gi');
-
   const skipTags = new Set(['script', 'style', 'code', 'pre', 'textarea']);
   const result: string[] = [];
   let i = 0;
@@ -463,10 +400,7 @@ function highlightKeywords(html: string, keywords: string[]): string {
 
   while (i < html.length) {
     const ch = html[i];
-
     if (ch === '<') {
-      // 先 flush 当前累积的文本（可能含关键词）
-      // 不需要，因为文本是逐字符累积的
       result.push(ch);
       if (inTag) { i++; continue; }
       inTag = true;
@@ -493,55 +427,68 @@ function highlightKeywords(html: string, keywords: string[]): string {
       continue;
     }
     if (skipDepth > 0) { result.push(ch); i++; continue; }
-
-    // 收集文本直到下一个标签
     const textStart = i;
     while (i < html.length && html[i] !== '<') i++;
-    const text = html.slice(textStart, i);
-    // 只对文本部分做关键词替换
-    result.push(text.replace(re, '<span class="kw-highlight">$1</span>'));
+    result.push(html.slice(textStart, i).replace(re, '<span class="kw-highlight">$1</span>'));
   }
   return result.join('');
 }
 
 // ===== 子组件 =====
 
-function SegmentedView({ html, segmentSize }: { html: string; segmentSize: number }) {
-  const text = htmlToText(html);
-  const segments = useMemo(() => segmentText(text, segmentSize), [text, segmentSize]);
-  const [idx, setIdx] = useState(0);
+/**
+ * FocusOverlay — 在非滚动父容器中放置固定定位的遮罩层。
+ * 使用半透明深色覆盖上下区域，中央保留透明窗口让内容可见。
+ * 遮罩不在滚动容器内，始终覆盖视口中央。
+ */
+function FocusOverlay({ mode }: { mode: 'lineFocus' | 'focusMask' }) {
+  const gradient =
+    mode === 'lineFocus'
+      ? 'linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.70) 36%, rgba(0,0,0,0.55) 40%, rgba(0,0,0,0.35) 44%, rgba(0,0,0,0.15) 47%, transparent 50%, rgba(0,0,0,0.15) 53%, rgba(0,0,0,0.35) 56%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.70) 64%, rgba(0,0,0,0.72) 100%)'
+      : 'linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.58) 18%, rgba(0,0,0,0.45) 24%, rgba(0,0,0,0.28) 30%, rgba(0,0,0,0.1) 35%, transparent 40%, transparent 60%, rgba(0,0,0,0.1) 65%, rgba(0,0,0,0.28) 70%, rgba(0,0,0,0.45) 76%, rgba(0,0,0,0.58) 82%, rgba(0,0,0,0.6) 100%)';
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') { e.preventDefault(); setIdx((i) => Math.min(segments.length - 1, i + 1)); }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); setIdx((i) => Math.max(0, i - 1)); }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [segments.length]);
-
-  if (segments.length === 0)
-    return <div style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: 40 }}>暂无内容</div>;
-
-  const pct = ((idx + 1) / segments.length) * 100;
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ height: 3, background: 'var(--color-bg-secondary)' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: 'var(--color-accent)', transition: 'width 0.3s' }} />
-      </div>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-        <div style={{ maxWidth: 680, width: '100%', textAlign: 'center' }}>
-          <p style={{ fontSize: 'var(--font-size, 20px)', lineHeight: 'var(--line-height, 2)', letterSpacing: 'var(--letter-spacing, 0.05em)', textIndent: '2em' }}>
-            {segments[idx]}
-          </p>
-        </div>
-      </div>
-      <div style={{ height: 56, borderTop: '1px solid var(--color-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
-        <button className="adhd-btn" disabled={idx === 0} onClick={() => setIdx((i) => i - 1)}>◀ 上一段</button>
-        <span style={{ color: 'var(--color-text-secondary)', fontSize: 13, minWidth: 80 }}>{idx + 1} / {segments.length}</span>
-        <button className="adhd-btn" disabled={idx === segments.length - 1} onClick={() => setIdx((i) => i + 1)}>下一段 ▶</button>
-      </div>
-    </div>
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        pointerEvents: 'none',
+        zIndex: 2,
+        background: gradient,
+      }}
+    />
+  );
+}
+
+/**
+ * ReadingRuler — 参考 Helperbird Reading Ruler
+ * 一条半透明彩色横条固定在视口中央，随滚动高亮当前阅读行。
+ */
+function ReadingRuler({ lineHeightPx }: { lineHeightPx: number }) {
+  const h = Math.round(lineHeightPx * 2.2);
+  return (
+    <div style={{
+      position: 'absolute',
+      top: '50%',
+      left: 0,
+      right: 0,
+      height: h,
+      marginTop: -h / 2,
+      pointerEvents: 'none',
+      zIndex: 2,
+      background: `linear-gradient(to bottom,
+        transparent 0%,
+        rgba(255, 210, 0, 0.15) 12%,
+        rgba(255, 210, 0, 0.22) 50%,
+        rgba(255, 210, 0, 0.15) 88%,
+        transparent 100%
+      )`,
+      borderTop: '1px solid rgba(255, 210, 0, 0.35)',
+      borderBottom: '1px solid rgba(255, 210, 0, 0.35)',
+    }} />
   );
 }
 
@@ -622,12 +569,42 @@ function SettingsModal({ settings, onClose, onSave }: { settings: any; onClose: 
           </div>
           <div className="toggle-row">
             <div>
-              <div className="toggle-label">专注暗角</div>
-              <div className="toggle-desc">暗化页面边缘，聚焦视线到当前阅读区域</div>
+              <div className="toggle-label">行聚焦 (Line Focus)</div>
+              <div className="toggle-desc">只高亮当前 3 行内容，其余暗化，保留完整排版</div>
             </div>
             <div
-              className={`toggle-switch ${local.reading.focusMode === 'dim' ? 'on' : ''}`}
-              onClick={() => set('reading.focusMode', local.reading.focusMode === 'dim' ? 'none' : 'dim')}
+              className={`toggle-switch ${local.reading.lineFocus ? 'on' : ''}`}
+              onClick={() => set('reading.lineFocus', !local.reading.lineFocus)}
+            />
+          </div>
+          <div className="toggle-row">
+            <div>
+              <div className="toggle-label">阅读遮罩 (Focus Mask)</div>
+              <div className="toggle-desc">宽幅聚焦区域，暗化上下边缘，减少视觉干扰</div>
+            </div>
+            <div
+              className={`toggle-switch ${local.reading.focusMask ? 'on' : ''}`}
+              onClick={() => set('reading.focusMask', !local.reading.focusMask)}
+            />
+          </div>
+          <div className="toggle-row">
+            <div>
+              <div className="toggle-label">阅读标尺 (Reading Ruler)</div>
+              <div className="toggle-desc">彩色横条高亮当前行，帮助追踪阅读位置</div>
+            </div>
+            <div
+              className={`toggle-switch ${local.reading.ruler ? 'on' : ''}`}
+              onClick={() => set('reading.ruler', !local.reading.ruler)}
+            />
+          </div>
+          <div className="toggle-row">
+            <div>
+              <div className="toggle-label">BeeLine 彩读</div>
+              <div className="toggle-desc">每行文字颜色渐变，引导视线自然过渡到下一行</div>
+            </div>
+            <div
+              className={`toggle-switch ${local.reading.beeline ? 'on' : ''}`}
+              onClick={() => set('reading.beeline', !local.reading.beeline)}
             />
           </div>
         </div>
@@ -679,9 +656,6 @@ function ReaderPanel({ data, onClose }: { data: any; onClose: () => void }) {
   // State
   const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS });
   const [showSettings, setShowSettings] = useState(false);
-  const [mode, setMode] = useState<'continuous' | 'segmented'>('continuous');
-  const [bionicOn, setBionicOn] = useState(false);
-  const [focusDimOn, setFocusDimOn] = useState(false);
   const [summary, setSummary] = useState('');
   const [keywords, setKeywords] = useState<string[]>([]);
   const [aiLoading, setAiLoading] = useState('');
@@ -690,13 +664,17 @@ function ReaderPanel({ data, onClose }: { data: any; onClose: () => void }) {
 
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // Derived from settings
+  const bionicOn = settings.reading.bionicReading;
+  const lineFocusOn = settings.reading.lineFocus;
+  const focusMaskOn = settings.reading.focusMask;
+  const rulerOn = settings.reading.ruler;
+  const beelineOn = settings.reading.beeline;
+
   // Load settings
   useEffect(() => {
     loadAllSettings().then((s) => {
       setSettings(s);
-      setMode(s.reading.mode);
-      setBionicOn(s.reading.bionicReading);
-      setFocusDimOn(s.reading.focusMode === 'dim');
     });
   }, []);
 
@@ -757,49 +735,61 @@ function ReaderPanel({ data, onClose }: { data: any; onClose: () => void }) {
   // Save settings
   const handleSaveSettings = (newSettings: any) => {
     setSettings(newSettings);
-    setMode(newSettings.reading.mode);
-    setBionicOn(newSettings.reading.bionicReading);
-    setFocusDimOn(newSettings.reading.focusMode === 'dim');
     saveAllSettings(newSettings);
     setShowSettings(false);
   };
 
-  // Toggle bionic (also persist)
-  const toggleBionic = useCallback(() => {
-    setBionicOn((prev) => {
-      const next = !prev;
-      const updated = { ...settings, reading: { ...settings.reading, bionicReading: next } };
-      setSettings(updated);
+  // Toggle helpers
+  const toggleSetting = useCallback((key: string) => {
+    setSettings((prev) => {
+      const updated = { ...prev, reading: { ...prev.reading, [key]: !(prev.reading as any)[key] } };
       saveAllSettings(updated);
-      return next;
+      return updated;
     });
-  }, [settings]);
+  }, []);
 
-  // Toggle focus dim (also persist)
-  const toggleFocusDim = useCallback(() => {
-    setFocusDimOn((prev) => {
-      const next = !prev;
-      const updated = { ...settings, reading: { ...settings.reading, focusMode: next ? 'dim' : 'none' } };
-      setSettings(updated);
-      saveAllSettings(updated);
-      return next;
+  const toggleBionic = useCallback(() => toggleSetting('bionicReading'), [toggleSetting]);
+  const toggleLineFocus = useCallback(() => toggleSetting('lineFocus'), [toggleSetting]);
+  const toggleFocusMask = useCallback(() => toggleSetting('focusMask'), [toggleSetting]);
+  const toggleRuler = useCallback(() => toggleSetting('ruler'), [toggleSetting]);
+  const toggleBeeline = useCallback(() => toggleSetting('beeline'), [toggleSetting]);
+
+  // Line height in pixels (for ruler & beeline)
+  const lineHeightPx = settings.appearance.fontSize * settings.appearance.lineHeight;
+
+  // BeeLine gradient colors per theme
+  const beelineGradient = useMemo(() => {
+    const colors = settings.appearance.theme === 'dark'
+      ? ['#7fb3d8', '#a8e6cf', '#ffd3b6', '#dcedc1']
+      : ['#1a5276', '#117a65', '#7d6608', '#935116'];
+    const stops = colors.flatMap((c, i) => {
+      const s = (i / colors.length * 100).toFixed(1);
+      const e = ((i + 1) / colors.length * 100).toFixed(1);
+      return [`${c} ${s}%`, `${c} ${e}%`];
     });
-  }, [settings]);
+    return `repeating-linear-gradient(to bottom, ${stops.join(', ')})`;
+  }, [settings.appearance.theme]);
+  const beelineBgSize = `${lineHeightPx * 4}px`;
 
   // Process content: bionic + keyword highlighting
   const processedHtml = useMemo(() => {
     let result = htmlContent;
-    // Apply bionic reading first
     if (bionicOn) result = applyBionicReading(result);
-    // Then highlight keywords (HTML-aware)
     if (keywords.length > 0) {
       const validKws = keywords.filter((k) => !k.startsWith('错误') && k.length > 0);
-      if (validKws.length > 0) {
-        result = highlightKeywords(result, validKws);
-      }
+      if (validKws.length > 0) result = highlightKeywords(result, validKws);
     }
     return result;
   }, [htmlContent, bionicOn, keywords]);
+
+  // Determine which overlay to show (mutually exclusive)
+  const overlayMode = rulerOn
+    ? 'ruler' as const
+    : lineFocusOn
+      ? 'lineFocus' as const
+      : focusMaskOn
+        ? 'focusMask' as const
+        : null;
 
   return (
     <div
@@ -818,15 +808,20 @@ function ReaderPanel({ data, onClose }: { data: any; onClose: () => void }) {
         <h1 style={{ fontSize: 15, fontWeight: 500, color: 'var(--color-text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '0 8px' }}>
           {title}
         </h1>
-        <button className={`adhd-btn ${bionicOn ? 'active' : ''}`} onClick={toggleBionic} title="Bionic Reading: 加粗单词前半部分">
+        <button className={`adhd-btn ${bionicOn ? 'active' : ''}`} onClick={toggleBionic} title="加粗单词前半部分，创建视觉锚点">
           Bionic
         </button>
-        <button className={`adhd-btn ${focusDimOn ? 'active' : ''}`} onClick={toggleFocusDim} title="专注暗角: 暗化边缘聚焦视线">
-          专注
+        <button className={`adhd-btn ${beelineOn ? 'active' : ''}`} onClick={toggleBeeline} title="每行文字颜色渐变，引导视线自然过渡">
+          彩读
         </button>
-        <button className={`adhd-btn ${mode === 'segmented' ? 'active' : ''}`}
-          onClick={() => setMode((m) => (m === 'continuous' ? 'segmented' : 'continuous'))} title="分段阅读">
-          {mode === 'continuous' ? '分段' : '连续'}
+        <button className={`adhd-btn ${lineFocusOn ? 'active' : ''}`} onClick={toggleLineFocus} title="只高亮当前3行，其余暗化">
+          聚焦
+        </button>
+        <button className={`adhd-btn ${focusMaskOn ? 'active' : ''}`} onClick={toggleFocusMask} title="宽幅聚焦区域，暗化上下边缘">
+          遮罩
+        </button>
+        <button className={`adhd-btn ${rulerOn ? 'active' : ''}`} onClick={toggleRuler} title="彩色标尺高亮当前阅读行">
+          标尺
         </button>
         <button className="adhd-btn" disabled={!!aiLoading} onClick={requestSummary} title="AI 摘要">
           {aiLoading === 'summary' ? '...' : '摘要'}
@@ -837,64 +832,57 @@ function ReaderPanel({ data, onClose }: { data: any; onClose: () => void }) {
         <button className="adhd-btn" onClick={() => setShowSettings(true)} title="设置">⚙</button>
       </div>
 
-      {/* 内容区 */}
-      {mode === 'continuous' ? (
-        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+      {/* 内容区 — 遮罩层在非滚动父容器中，始终覆盖视口中央 */}
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+        <div ref={contentRef} style={{ height: '100%', overflow: 'auto', padding: '32px 40px' }}>
+          {showSummary && (
+            <div className="summary-box">
+              <div className="summary-title" onClick={() => setShowSummary(false)}>
+                <span>AI 摘要</span>
+                <span style={{ fontSize: 12 }}>{summary ? '收起' : ''}</span>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                {aiLoading === 'summary' ? '正在生成...' : summary || '点击上方"摘要"按钮'}
+              </div>
+              {summary && (
+                <button
+                  onClick={() => navigator.clipboard.writeText(summary)}
+                  style={{ marginTop: 8, background: 'none', border: '1px solid var(--color-bg-secondary)', borderRadius: 4, padding: '3px 10px', fontSize: 11, color: 'var(--color-text-secondary)', cursor: 'pointer' }}
+                >
+                  复制摘要
+                </button>
+              )}
+            </div>
+          )}
+          {keywords.length > 0 && (
+            <div style={{ marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {keywords.filter((k) => !k.startsWith('错误')).map((kw, i) => (
+                <span key={i} className="keyword-tag">{kw}</span>
+              ))}
+            </div>
+          )}
           <div
-            ref={contentRef}
-            className={focusDimOn ? 'focus-dim' : ''}
-            style={{ height: '100%', overflow: 'auto', padding: '32px 40px', position: 'relative' }}
-          >
-            {showSummary && (
-              <div className="summary-box">
-                <div className="summary-title" onClick={() => setShowSummary(false)}>
-                  <span>AI 摘要</span>
-                  <span style={{ fontSize: 12 }}>{summary ? '收起' : ''}</span>
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  {aiLoading === 'summary' ? '正在生成...' : summary || '点击上方"摘要"按钮'}
-                </div>
-                {summary && (
-                  <button
-                    onClick={() => navigator.clipboard.writeText(summary)}
-                    style={{ marginTop: 8, background: 'none', border: '1px solid var(--color-bg-secondary)', borderRadius: 4, padding: '3px 10px', fontSize: 11, color: 'var(--color-text-secondary)', cursor: 'pointer' }}
-                  >
-                    复制摘要
-                  </button>
-                )}
-              </div>
-            )}
-            {keywords.length > 0 && (
-              <div style={{ marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {keywords.filter((k) => !k.startsWith('错误')).map((kw, i) => (
-                  <span key={i} className="keyword-tag">{kw}</span>
-                ))}
-              </div>
-            )}
-            <div
-              className="adhd-content"
-              style={{
-                maxWidth: 'var(--panel-max-width)', margin: '0 auto',
-                fontSize: 'var(--font-size)', lineHeight: 'var(--line-height)',
-                letterSpacing: 'var(--letter-spacing)', color: 'var(--color-text-primary)',
-              }}
-              dangerouslySetInnerHTML={{ __html: processedHtml }}
-            />
-          </div>
+            className={`adhd-content${beelineOn ? ' beeline' : ''}`}
+            style={{
+              maxWidth: 'var(--panel-max-width)', margin: '0 auto',
+              fontSize: 'var(--font-size)', lineHeight: 'var(--line-height)',
+              letterSpacing: 'var(--letter-spacing)', color: 'var(--color-text-primary)',
+              ...(beelineOn ? { backgroundImage: beelineGradient, backgroundSize: `100% ${beelineBgSize}` } : {}),
+            }}
+            dangerouslySetInnerHTML={{ __html: processedHtml }}
+          />
         </div>
-      ) : (
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          <SegmentedView html={htmlContent} segmentSize={settings.reading.segmentSize} />
-        </div>
-      )}
+        {/* 覆盖层 — 在滚动容器外面，固定覆盖视口 */}
+        {overlayMode === 'ruler' && <ReadingRuler lineHeightPx={lineHeightPx} />}
+        {overlayMode === 'lineFocus' && <FocusOverlay mode="lineFocus" />}
+        {overlayMode === 'focusMask' && <FocusOverlay mode="focusMask" />}
+      </div>
 
       {/* 底栏 */}
       <div style={{ height: 36, borderTop: '1px solid var(--color-bg-secondary)', display: 'flex', alignItems: 'center', padding: '0 20px', color: 'var(--color-text-secondary)', fontSize: 12, flexShrink: 0, gap: 12 }}>
-        {mode === 'continuous' && (
-          <div style={{ flex: 1, height: 3, background: 'var(--color-bg-secondary)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${scrollPct}%`, background: 'var(--color-accent)', transition: 'width 0.2s' }} />
-          </div>
-        )}
+        <div style={{ flex: 1, height: 3, background: 'var(--color-bg-secondary)', borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${scrollPct}%`, background: 'var(--color-accent)', transition: 'width 0.2s' }} />
+        </div>
         <span style={{ whiteSpace: 'nowrap' }}>
           {plainText.length > 0 && (
             <span style={{ marginRight: 8 }}>
