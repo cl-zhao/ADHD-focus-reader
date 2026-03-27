@@ -11,7 +11,30 @@
       "Bash(grep -o '.\\\\{0,30\\\\}process.\\\\{0,30\\\\}.' dist/content/content.js)",
       "Bash(cd:*)",
       "WebSearch",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "WebFetch(domain:chromewebstore.google.com)",
+      "WebFetch(domain:bionic-reading.com)",
+      "WebFetch(domain:readermode.io)",
+      "WebFetch(domain:justread.info)",
+      "WebFetch(domain:mercury.com)",
+      "WebFetch(domain:readwise.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.beelinereader.com)",
+      "WebFetch(domain:www.spreeder.com)",
+      "WebFetch(domain:opendyslexic.org)",
+      "WebFetch(domain:zapier.com)",
+      "WebFetch(domain:swiftread.com)",
+      "WebFetch(domain:www.understood.org)",
+      "WebFetch(domain:www.additudemag.com)",
+      "WebFetch(domain:www.makeuseof.com)",
+      "WebFetch(domain:reader.postlight.com)",
+      "WebFetch(domain:reedy.io)",
+      "WebFetch(domain:claroread.org)",
+      "WebFetch(domain:www.assistiveware.com)",
+      "WebFetch(domain:www.reddit.com)",
+      "WebFetch(domain:readline.page)",
+      "WebFetch(domain:bionicreader.app)",
+      "WebFetch(domain:www.producthunt.com)"
     ]
   }
 }
